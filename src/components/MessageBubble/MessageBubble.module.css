@@ -1,0 +1,125 @@
+.row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.row[data-direction='out'] {
+  align-items: flex-end;
+}
+
+.bubble {
+  position: relative;
+  max-width: min(480px, 85%);
+  min-width: 72px;
+  padding: 8px 10px;
+  border-radius: 16px;
+  background: var(--bubble-in-bg);
+  color: var(--bubble-in-text);
+}
+
+.bubble[data-direction='out'] {
+  background: var(--bubble-out-bg);
+  color: var(--bubble-out-text);
+}
+
+/* Stacked corners: messages in one run touch with a 6px corner on their own side. */
+.bubble[data-direction='in']:not([data-group-start]) {
+  border-top-left-radius: var(--radius-xs);
+}
+
+.bubble[data-direction='in']:not([data-group-end]) {
+  border-bottom-left-radius: var(--radius-xs);
+}
+
+.bubble[data-direction='out']:not([data-group-start]) {
+  border-top-right-radius: var(--radius-xs);
+}
+
+.bubble[data-direction='out']:not([data-group-end]) {
+  border-bottom-right-radius: var(--radius-xs);
+}
+
+.bubble[data-failed] {
+  opacity: 0.85;
+}
+
+.text {
+  margin: 0;
+  font-size: 16px;
+  line-height: 20px;
+  letter-spacing: 0.15px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* Reserves room at the end of the last line for the absolutely positioned time/status. */
+.spacer {
+  display: inline-block;
+  width: 44px;
+  height: 1px;
+}
+
+.spacer[data-with-status] {
+  width: 64px;
+}
+
+.meta {
+  position: absolute;
+  right: 10px;
+  bottom: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--bubble-in-meta);
+  user-select: none;
+}
+
+.bubble[data-direction='out'] .meta {
+  color: var(--bubble-out-meta);
+}
+
+.status {
+  display: inline-flex;
+  color: var(--bubble-out-check);
+}
+
+.status svg {
+  display: block;
+}
+
+.status[data-status='read'] {
+  color: var(--bubble-out-read);
+}
+
+.status[data-status='failed'] {
+  color: var(--negative);
+}
+
+.failure {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: min(480px, 85%);
+  margin-top: 4px;
+  font-size: 13px;
+  line-height: 16px;
+  color: var(--negative);
+  text-align: right;
+}
+
+.failure button {
+  flex: none;
+  padding: 4px 8px;
+  border-radius: 8px;
+  background: var(--bg-primary);
+  color: var(--accent);
+  font-weight: 500;
+  box-shadow: 0 0 0 1px var(--divider-strong);
+}
+
+.failure button:hover {
+  background: var(--accent-soft);
+}

@@ -1,0 +1,72 @@
+.composer {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  width: calc(100% - 48px);
+  max-width: calc(var(--content-max) - 48px);
+  margin: 0 auto 24px;
+  padding: 6px 6px 6px 16px;
+  border-radius: var(--radius-l);
+  background: var(--bg-primary);
+  box-shadow: var(--shadow-float);
+}
+
+.input {
+  flex: 1;
+  min-width: 0;
+  max-height: calc(10 * 20px + 20px);
+  padding: 10px 0;
+  border: none;
+  outline: none;
+  resize: none;
+  background: transparent;
+  font-size: 16px;
+  line-height: 20px;
+  color: #0c0d0e;
+}
+
+.input::placeholder {
+  color: var(--text-tertiary);
+}
+
+.counter {
+  align-self: center;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.send {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--text-on-accent);
+  transition:
+    opacity 0.15s,
+    background 0.15s;
+}
+
+.send:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.send:disabled {
+  opacity: 0.35;
+}
+
+.send svg {
+  width: 20px;
+  height: 20px;
+}
+
+@media (max-width: 767px) {
+  .composer {
+    width: calc(100% - 16px);
+    margin-bottom: max(8px, env(safe-area-inset-bottom));
+  }
+}
