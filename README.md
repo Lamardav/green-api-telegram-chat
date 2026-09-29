@@ -2,6 +2,8 @@
 
 Веб-интерфейс для отправки и получения текстовых сообщений Telegram через [GREEN-API](https://green-api.com/telegram/). Внешний вид повторяет веб-версию мессенджера MAX ([web.max.ru](https://web.max.ru/)).
 
+**Рабочая версия:** https://lamardav.github.io/green-api-telegram-chat/. Войдите с `idInstance` и `apiTokenInstance` своего тестового инстанса Telegram.
+
 **Стек:** React 19 · TypeScript (strict) · Vite 8 · CSS Modules · Vitest + Testing Library · oxlint · Prettier. Бэкенда нет: браузер обращается к GREEN-API напрямую, CORS это разрешает.
 
 ![Переписка](docs/screenshots/chat.png)
