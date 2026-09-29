@@ -1,3 +1,5 @@
+import { isObject, str, type Obj } from '../lib/guards'
+
 export type IncomingTextEvent = {
   type: 'incomingText'
   chatId: string
@@ -22,10 +24,6 @@ export type IgnoredEvent = { type: 'ignored'; reason: string }
 
 export type DomainEvent = IncomingTextEvent | OutgoingStatusEvent | IgnoredEvent
 
-type Obj = Record<string, unknown>
-
-const isObject = (v: unknown): v is Obj => typeof v === 'object' && v !== null
-const str = (v: unknown): string => (typeof v === 'string' ? v : '')
 const ignored = (reason: string): IgnoredEvent => ({ type: 'ignored', reason })
 
 const NO_ACCOUNT = 'У получателя нет аккаунта Telegram или номер скрыт настройками приватности'

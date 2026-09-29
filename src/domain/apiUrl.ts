@@ -15,7 +15,9 @@ export function normalizeApiUrl(raw: string): string | null {
   } catch {
     return null
   }
-  if (url.protocol !== 'https:' && url.protocol !== 'http:') return null
+  // The token travels in the URL path, so plain HTTP is accepted only for a local proxy.
+  const local = url.hostname === 'localhost' || url.hostname === '127.0.0.1'
+  if (url.protocol !== 'https:' && !(url.protocol === 'http:' && local)) return null
   return value.replace(/\/+$/, '')
 }
 

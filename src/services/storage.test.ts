@@ -8,7 +8,7 @@ import {
   loadChats,
   loadSession,
   loadTheme,
-  parseChatsJson,
+  MAX_STORED_MESSAGES_PER_CHAT,
   saveChats,
   saveSession,
   saveTheme,
@@ -60,7 +60,7 @@ describe('chats', () => {
     saveChats('4100000001', state)
     expect(localStorage.getItem(chatsKey('4100000001'))).not.toBeNull()
     expect(loadChats('4100000002')).toBeNull()
-    expect(loadChats('4100000001')).toEqual({ ...state, pendingStatuses: {} })
+    expect(loadChats('4100000001')).toEqual({ ...state, pendingStatuses: [] })
   })
 
   it('marks messages that were still sending as failed so they can be retried', () => {
@@ -80,19 +80,30 @@ describe('chats', () => {
     })
   })
 
-  it('keeps in-flight messages pending when syncing from another tab', () => {
-    const sending = chatReducer(state, {
-      type: 'messageQueued',
-      chatId: '1',
-      localId: 'L2',
-      text: 'in flight',
-      now: 30,
+  it('stores only the latest messages of a long chat', () => {
+    const long = Array.from({ length: MAX_STORED_MESSAGES_PER_CHAT + 20 }, (_, i) => ({
+      type: 'incomingText' as const,
+      event: {
+        type: 'incomingText' as const,
+        chatId: '1',
+        idMessage: `in-${i}`,
+        text: String(i),
+        timestamp: 1000 + i,
+        senderName: 'A',
+      },
+    })).reduce(chatReducer, state)
+    saveChats('4100000001', long)
+    const restored = loadChats('4100000001')!.chats['1']!.messages
+    expect(restored).toHaveLength(MAX_STORED_MESSAGES_PER_CHAT)
+    expect(restored.at(-1)!.text).toBe(String(MAX_STORED_MESSAGES_PER_CHAT + 19))
+  })
+
+  it('reports a refused write', () => {
+    expect(saveChats('4100000001', state)).toBe(true)
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new DOMException('full', 'QuotaExceededError')
     })
-    saveChats('4100000001', sending)
-    const synced = parseChatsJson(localStorage.getItem(chatsKey('4100000001')))!
-    expect(synced.chats['1']!.messages[1]!.status).toBe('pending')
-    expect(parseChatsJson(null)).toBeNull()
-    expect(parseChatsJson('{bad')).toBeNull()
+    expect(saveChats('4100000001', state)).toBe(false)
   })
 
   it('discards malformed data', () => {

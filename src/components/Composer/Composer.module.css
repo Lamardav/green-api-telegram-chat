@@ -9,6 +9,19 @@
   border-radius: var(--radius-l);
   background: var(--bg-primary);
   box-shadow: var(--shadow-float);
+  transition: box-shadow 0.15s;
+}
+
+/* The card shows focus, so the bare textarea inside it does not need its own ring. */
+.composer:focus-within {
+  box-shadow:
+    0 0 0 1px var(--accent),
+    0 0 0 4px var(--accent-soft),
+    var(--shadow-float);
+}
+
+.input:focus-visible {
+  outline: none;
 }
 
 .input {
@@ -22,7 +35,7 @@
   background: transparent;
   font-size: 16px;
   line-height: 20px;
-  color: #0c0d0e;
+  color: var(--text-input);
 }
 
 .input::placeholder {

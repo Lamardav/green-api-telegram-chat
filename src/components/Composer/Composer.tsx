@@ -7,7 +7,11 @@ type Props = {
   onSend(text: string): void
 }
 
-const COUNTER_THRESHOLD = MAX_MESSAGE_LENGTH - 196
+/** Show the length counter only when the limit gets close. */
+const COUNTER_THRESHOLD = 3900
+
+const isTouchDevice = () =>
+  typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches
 
 export function Composer({ onSend }: Props) {
   const id = useId()
@@ -25,8 +29,7 @@ export function Composer({ onSend }: Props) {
 
   // Focus on open, except on touch devices where it would pop the keyboard unasked.
   useEffect(() => {
-    const coarse = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches
-    if (!coarse) ref.current?.focus()
+    if (!isTouchDevice()) ref.current?.focus()
   }, [])
 
   function send() {
@@ -37,7 +40,9 @@ export function Composer({ onSend }: Props) {
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
-    if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
+    // On touch keyboards Enter inserts a line break; the send button sends.
+    if (event.key !== 'Enter' || event.shiftKey || event.nativeEvent.isComposing) return
+    if (!isTouchDevice()) {
       event.preventDefault()
       send()
     }

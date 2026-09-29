@@ -1,7 +1,7 @@
 import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useLayoutEffect } from 'react'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { SettingsBanner } from '../components/SettingsBanner/SettingsBanner'
 import {
   createFakeGreenApi,
@@ -197,27 +197,41 @@ describe('ChatsProvider', () => {
     expect(localStorage.getItem(chatsKey(FAKE_ID_INSTANCE))).toContain('история')
   })
 
-  it('mirrors changes written by another tab', async () => {
+  it('treats a webhook error right after enabling as temporary', async () => {
+    renderChats({ settingsReady: false })
+    await userEvent.click(await screen.findByRole('button', { name: 'Включить получение' }))
+    await screen.findByText(/Настройки сохранены/)
+
+    // The instance restarts and still answers with the old settings for a while.
+    fake.settings.webhookUrl = 'https://example.com/hook'
+    await waitFor(() =>
+      expect(fake.calls.filter((c) => c === 'receiveNotification').length).toBeGreaterThan(1),
+    )
+    fake.settings.webhookUrl = ''
+    fake.pushIncoming(FAKE_CHAT_ID, 'дошло')
+
+    await waitFor(() => expect(chat()?.messages[0]?.text).toBe('дошло'), { timeout: 4000 })
+    expect(chats.settings).toBe('applied')
+  })
+
+  it('asks to fix the settings again when a webhook appears later, without a stale reconnect banner', async () => {
     renderChats()
     await waitFor(() => expect(chats.settings).toBe('ready'))
-    const key = chatsKey(FAKE_ID_INSTANCE)
-    const remote = {
-      chats: {
-        '777': {
-          chatId: '777',
-          title: 'Из другой вкладки',
-          messages: [],
-          unread: 0,
-          lastActivity: 5,
-        },
-      },
-      order: ['777'],
-      activeChatId: '777',
-    }
-    act(() => {
-      window.dispatchEvent(new StorageEvent('storage', { key, newValue: JSON.stringify(remote) }))
+    fake.failNext('receiveNotification', 0)
+    await waitFor(() => expect(chats.connection).toBe('retrying'), { timeout: 3000 })
+    fake.settings.webhookUrl = 'https://example.com/other'
+
+    await waitFor(() => expect(chats.settings).toBe('needsSetup'), { timeout: 4000 })
+    expect(chats.connection).toBe('ok')
+  })
+
+  it('reports when the history cannot be saved', async () => {
+    renderChats()
+    await waitFor(() => expect(chats.settings).toBe('ready'))
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new DOMException('full', 'QuotaExceededError')
     })
-    expect(chat('777')?.title).toBe('Из другой вкладки')
-    expect(chats.state.activeChatId).toBeNull()
+    fake.pushIncoming(FAKE_CHAT_ID, 'не влезло')
+    await waitFor(() => expect(chats.storageOk).toBe(false))
   })
 })

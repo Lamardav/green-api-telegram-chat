@@ -193,6 +193,51 @@ describe('error classification', () => {
     expect(await kindOf(client.getStateInstance(controller.signal))).toBe('aborted')
   })
 
+  it('times out a hanging request as a network error', async () => {
+    vi.useFakeTimers()
+    try {
+      const hanging: FetchLike = (_url, init) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => reject(init.signal?.reason))
+        })
+      const client = createGreenApiClient(creds, hanging)
+      const result = client.sendMessage('1', 'x').catch((e: unknown) => e)
+      await vi.advanceTimersByTimeAsync(15_000)
+      expect(await result).toMatchObject({ kind: 'network' })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('gives a long poll its receive timeout plus slack before timing out', async () => {
+    vi.useFakeTimers()
+    try {
+      let aborted = false
+      const hanging: FetchLike = (_url, init) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => {
+            aborted = true
+            reject(init.signal?.reason)
+          })
+        })
+      const pending = createGreenApiClient(creds, hanging)
+        .receiveNotification(20)
+        .catch((e: unknown) => e)
+      await vi.advanceTimersByTimeAsync(29_000)
+      expect(aborted).toBe(false)
+      await vi.advanceTimersByTimeAsync(1_000)
+      expect(await pending).toMatchObject({ kind: 'network' })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('escapes credentials in the request path', async () => {
+    const fetch = fakeFetch(() => json({ stateInstance: 'authorized' }))
+    await createGreenApiClient({ ...creds, apiTokenInstance: 'a/b?c#d' }, fetch).getStateInstance()
+    expect(fetch.mock.calls[0]![0]).toBe(`${base}/getStateInstance/a%2Fb%3Fc%23d`)
+  })
+
   it('never leaks the token into error messages', async () => {
     const client = createGreenApiClient(
       creds,

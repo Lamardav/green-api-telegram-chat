@@ -1,5 +1,6 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { StrictMode } from 'react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { App } from './App'
 import {
@@ -29,7 +30,12 @@ describe('App acceptance scenario', () => {
       settingsReady: false,
     })
     const user = userEvent.setup()
-    const view = render(<App fetchImpl={fake.fetch} />)
+    // StrictMode double-invokes effects: polling and the tab lock must survive that.
+    const view = render(
+      <StrictMode>
+        <App fetchImpl={fake.fetch} />
+      </StrictMode>,
+    )
 
     // 1. Sign in with GREEN-API credentials.
     await user.type(screen.getByLabelText('idInstance'), FAKE_ID_INSTANCE)
@@ -90,10 +96,10 @@ describe('App acceptance scenario', () => {
     fake.pushIncoming('20000002', 'Вы меня не знаете', 'Пётр')
     const list = screen.getByRole('complementary', { name: 'Чаты' })
     expect(await within(list).findByText('Пётр', undefined, LONG)).toBeInTheDocument()
-    expect(within(list).getByLabelText('Непрочитанных: 1')).toBeInTheDocument()
+    expect(within(list).getByRole('button', { name: /Пётр.*Непрочитанных: 1/ })).toBeInTheDocument()
 
     await user.click(within(list).getByRole('button', { name: /Пётр/ }))
     expect(screen.getByRole('region', { name: 'Чат: Пётр' })).toBeInTheDocument()
-    expect(within(list).queryByLabelText('Непрочитанных: 1')).not.toBeInTheDocument()
+    expect(within(list).queryByText('Непрочитанных:', { exact: false })).not.toBeInTheDocument()
   })
 })

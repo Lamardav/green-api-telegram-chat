@@ -23,20 +23,23 @@ const sameGroup = (a: Message | undefined, b: Message | undefined) =>
 export function MessageList({ chatId, messages, onRetry }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const stickToBottom = useRef(true)
+  const lastSeen = useRef<string | null>(null)
+  const last = messages.at(-1)
 
   // A newly opened chat starts at the latest message.
   useLayoutEffect(() => {
     stickToBottom.current = true
+    lastSeen.current = null
   }, [chatId])
 
-  // Follow new messages unless the user scrolled up to read history; own messages always scroll.
+  // Scroll only when a new message arrives (not on status updates), and not while the user
+  // is reading history above — except for their own messages.
   useLayoutEffect(() => {
     const el = scrollRef.current
-    if (!el) return
-    if (stickToBottom.current || messages.at(-1)?.direction === 'out') {
-      el.scrollTop = el.scrollHeight
-    }
-  }, [chatId, messages])
+    if (!el || !last || last.localId === lastSeen.current) return
+    lastSeen.current = last.localId
+    if (stickToBottom.current || last.direction === 'out') el.scrollTop = el.scrollHeight
+  }, [chatId, last])
 
   const handleScroll = () => {
     const el = scrollRef.current
@@ -58,7 +61,6 @@ export function MessageList({ chatId, messages, onRetry }: Props) {
       className={styles.scroll}
       onScroll={handleScroll}
       role="log"
-      aria-live="polite"
       aria-label="Сообщения"
     >
       <div className={styles.column}>

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { Theme } from '../../services/storage'
 import { useChats } from '../../state/chats'
 import { useSession } from '../../state/session'
@@ -15,15 +15,35 @@ type Props = {
 
 export function Sidebar({ theme, onThemeChange }: Props) {
   const { credentials, logout } = useSession()
-  const { state, connection, openChatByPhone, selectChat } = useChats()
+  const { state, connection, storageOk, openChatByPhone, selectChat } = useChats()
   const [creating, setCreating] = useState(false)
+  const newChatButton = useRef<HTMLButtonElement>(null)
+  const list = useRef<HTMLUListElement>(null)
+  const previousActive = useRef(state.activeChatId)
   const chats = state.order.map((id) => state.chats[id]).filter((c) => c !== undefined)
+
+  // Coming back from a conversation (mobile "back") returns focus to that chat in the list.
+  useEffect(() => {
+    const previous = previousActive.current
+    previousActive.current = state.activeChatId
+    if (previous === null || state.activeChatId !== null) return
+    const items = list.current?.querySelectorAll<HTMLButtonElement>('button[data-chat-id]') ?? []
+    Array.from(items)
+      .find((item) => item.dataset.chatId === previous)
+      ?.focus()
+  }, [state.activeChatId])
+
+  const cancelNewChat = () => {
+    setCreating(false)
+    newChatButton.current?.focus()
+  }
 
   return (
     <aside className={styles.sidebar} aria-label="Чаты">
       <header className={styles.header}>
         <h1 className={styles.title}>Чаты</h1>
         <button
+          ref={newChatButton}
           type="button"
           className={styles.iconButton}
           onClick={() => setCreating((v) => !v)}
@@ -36,12 +56,23 @@ export function Sidebar({ theme, onThemeChange }: Props) {
       </header>
 
       {connection === 'retrying' && (
-        <p className={styles.connection} role="status">
+        <p className={styles.notice} role="status">
           Нет связи с GREEN-API. Переподключаемся…
         </p>
       )}
+      {!storageOk && (
+        <p className={styles.notice} role="status">
+          История не сохраняется: хранилище браузера недоступно или переполнено
+        </p>
+      )}
 
-      {creating && <NewChatForm onSubmit={openChatByPhone} onClose={() => setCreating(false)} />}
+      {creating && (
+        <NewChatForm
+          onSubmit={openChatByPhone}
+          onDone={() => setCreating(false)}
+          onCancel={cancelNewChat}
+        />
+      )}
 
       {chats.length === 0 ? (
         <div className={styles.empty}>
@@ -54,7 +85,7 @@ export function Sidebar({ theme, onThemeChange }: Props) {
           )}
         </div>
       ) : (
-        <ul className={styles.list}>
+        <ul ref={list} className={styles.list}>
           {chats.map((chat) => (
             <ChatListItem
               key={chat.chatId}

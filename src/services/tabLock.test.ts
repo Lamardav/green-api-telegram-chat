@@ -1,51 +1,66 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
-import { runExclusive } from './tabLock'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { installFakeLocks } from '../test/fakeLocks'
+import { claimTab } from './tabLock'
 
-const setLocks = (value: unknown) =>
-  Object.defineProperty(navigator, 'locks', { value, configurable: true })
-
-afterEach(() => {
-  setLocks(undefined)
+let locks: ReturnType<typeof installFakeLocks>
+beforeEach(() => {
+  locks = installFakeLocks()
 })
+afterEach(() => locks.uninstall())
 
-describe('runExclusive', () => {
-  it('runs directly when the Web Locks API is unavailable', async () => {
-    setLocks(undefined)
-    const fn = vi.fn(async () => {})
-    const controller = new AbortController()
-    await runExclusive('lock', fn, controller.signal)
-    expect(fn).toHaveBeenCalledWith(controller.signal)
+const settled = async (promise: Promise<unknown>) => {
+  let done = false
+  void promise.then(
+    () => (done = true),
+    () => (done = true),
+  )
+  await new Promise((r) => setTimeout(r, 0))
+  return done
+}
+
+describe('claimTab', () => {
+  it('grants a free lock and frees it on release', async () => {
+    const claim = await claimTab('chat')
+    expect(locks.isHeld('chat')).toBe(true)
+    claim.release()
+    await claim.lost
+    expect(locks.isHeld('chat')).toBe(false)
   })
 
-  it('runs inside the named lock when available', async () => {
-    const request = vi.fn(async (_name: string, _opts: unknown, cb: () => Promise<void>) => cb())
-    setLocks({ request })
-    const fn = vi.fn(async () => {})
-    const controller = new AbortController()
-    await runExclusive('gac-poller-1', fn, controller.signal)
-    expect(request).toHaveBeenCalledWith(
-      'gac-poller-1',
-      { signal: controller.signal },
-      expect.any(Function),
-    )
-    expect(fn).toHaveBeenCalledOnce()
+  it('waits while another tab holds the lock and gets it after release', async () => {
+    const first = await claimTab('chat')
+    const second = claimTab('chat')
+    expect(await settled(second)).toBe(false)
+    first.release()
+    await expect(second).resolves.toHaveProperty('release')
   })
 
-  it('resolves quietly when aborted while waiting for the lock', async () => {
+  it('stops waiting when aborted', async () => {
+    await claimTab('chat')
     const controller = new AbortController()
-    setLocks({
-      request: () => {
-        controller.abort()
-        return Promise.reject(new DOMException('aborted', 'AbortError'))
-      },
-    })
-    await expect(runExclusive('lock', async () => {}, controller.signal)).resolves.toBeUndefined()
+    const waiting = claimTab('chat', { signal: controller.signal })
+    controller.abort()
+    await expect(waiting).rejects.toMatchObject({ name: 'AbortError' })
   })
 
-  it('propagates other failures', async () => {
-    setLocks({ request: () => Promise.reject(new Error('boom')) })
-    await expect(
-      runExclusive('lock', async () => {}, new AbortController().signal),
-    ).rejects.toThrow('boom')
+  it('takes the lock over, and the previous owner learns it lost it', async () => {
+    const first = await claimTab('chat')
+    const lost = vi.fn()
+    void first.lost.then(lost)
+    const second = await claimTab('chat', { steal: true })
+    await Promise.resolve()
+    expect(lost).toHaveBeenCalled()
+    expect(locks.isHeld('chat')).toBe(true)
+    second.release()
+  })
+
+  it('treats every tab as owner without the Web Locks API', async () => {
+    locks.uninstall()
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const a = await claimTab('chat')
+    const b = await claimTab('chat')
+    expect(a).toHaveProperty('release')
+    expect(b).toHaveProperty('release')
+    expect(warn.mock.calls.length).toBeLessThanOrEqual(1)
   })
 })

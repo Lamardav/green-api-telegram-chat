@@ -25,7 +25,7 @@ export type Chat = {
   lastActivity: number
 }
 
-export type PendingStatus = { status: DeliveryStatus; description?: string }
+export type PendingStatus = { idMessage: string; status: DeliveryStatus; description?: string }
 
 export type ChatsState = {
   chats: Record<string, Chat>
@@ -33,5 +33,5 @@ export type ChatsState = {
   order: string[]
   activeChatId: string | null
   /** Statuses that arrived before the SendMessage response told us their idMessage. Not persisted. */
-  pendingStatuses: Record<string, PendingStatus>
+  pendingStatuses: PendingStatus[]
 }

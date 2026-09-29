@@ -10,16 +10,28 @@ export type ChatAction =
   | { type: 'messageRetry'; chatId: string; localId: string }
   | { type: 'incomingText'; event: IncomingTextEvent }
   | { type: 'outgoingStatus'; event: OutgoingStatusEvent }
-  | { type: 'replaced'; state: ChatsState }
 
 export const initialChatsState: ChatsState = {
   chats: {},
   order: [],
   activeChatId: null,
-  pendingStatuses: {},
+  pendingStatuses: [],
 }
 
 const DEFAULT_FAILURE = 'Сообщение не доставлено'
+
+/**
+ * Statuses for messages this client never sent (e.g. sent from the phone) are never claimed,
+ * so the buffer keeps only the most recent ones.
+ */
+export const MAX_PENDING_STATUSES = 100
+
+/**
+ * How much older than the latest message an incoming one must be to be inserted before it.
+ * Server and client clocks differ and GREEN-API timestamps have second precision, so small
+ * differences are treated as "arrived now"; only a real backlog is sorted into the past.
+ */
+export const BACKLOG_THRESHOLD_MS = 60_000
 
 const RANK: Record<MessageStatus, number> = {
   pending: 0,
@@ -69,22 +81,22 @@ export function chatReducer(state: ChatsState, action: ChatAction): ChatsState {
         timestamp: action.now,
         status: 'pending',
       }
+      // Own messages always go last: the user just typed them, whatever the clocks say.
       return withChat(state, {
         ...chat,
-        messages: insertByTime(chat.messages, message),
+        messages: [...chat.messages, message],
         lastActivity: Math.max(chat.lastActivity, action.now),
       })
     }
 
     case 'messageSent': {
-      const buffered = state.pendingStatuses[action.idMessage]
+      const buffered = state.pendingStatuses.find((p) => p.idMessage === action.idMessage)
       const next = updateMessage(state, action.chatId, action.localId, (m) => {
         const sent: Message = { ...m, idMessage: action.idMessage, status: 'sent' }
         return buffered ? applyStatus(sent, buffered) : sent
       })
       if (next === state || !buffered) return next
-      const { [action.idMessage]: _applied, ...rest } = next.pendingStatuses
-      return { ...next, pendingStatuses: rest }
+      return { ...next, pendingStatuses: next.pendingStatuses.filter((p) => p !== buffered) }
     }
 
     case 'messageFailed':
@@ -104,24 +116,6 @@ export function chatReducer(state: ChatsState, action: ChatAction): ChatsState {
 
     case 'outgoingStatus':
       return receiveStatus(state, action.event)
-
-    case 'replaced': {
-      const { chats, order } = action.state
-      const activeChatId =
-        state.activeChatId !== null && chats[state.activeChatId] ? state.activeChatId : null
-      // Statuses buffered here may belong to messages another tab has just sent.
-      let next: ChatsState = { chats, order, activeChatId, pendingStatuses: {} }
-      for (const [idMessage, pending] of Object.entries(state.pendingStatuses)) {
-        const event: OutgoingStatusEvent = {
-          type: 'outgoingStatus',
-          chatId: '',
-          idMessage,
-          ...pending,
-        }
-        next = receiveStatus(next, event)
-      }
-      return next
-    }
   }
 }
 
@@ -145,14 +139,14 @@ function receiveIncoming(state: ChatsState, event: IncomingTextEvent): ChatsStat
   }
   return withChat(state, {
     ...chat,
-    messages: insertByTime(chat.messages, message),
+    messages: insertIncoming(chat.messages, message),
     unread: state.activeChatId === event.chatId ? chat.unread : chat.unread + 1,
     lastActivity: Math.max(chat.lastActivity, event.timestamp),
   })
 }
 
 function receiveStatus(state: ChatsState, event: OutgoingStatusEvent): ChatsState {
-  const update: PendingStatus = { status: event.status }
+  const update: PendingStatus = { idMessage: event.idMessage, status: event.status }
   if (event.description !== undefined) update.description = event.description
 
   const located = findByIdMessage(state, event.chatId, event.idMessage)
@@ -161,9 +155,10 @@ function receiveStatus(state: ChatsState, event: OutgoingStatusEvent): ChatsStat
   }
 
   // SendMessage has not resolved yet: remember the best status we have seen.
-  const previous = state.pendingStatuses[event.idMessage]
+  const previous = state.pendingStatuses.find((p) => p.idMessage === event.idMessage)
   if (previous && !isUpgrade(previous.status, update.status)) return state
-  return { ...state, pendingStatuses: { ...state.pendingStatuses, [event.idMessage]: update } }
+  const others = state.pendingStatuses.filter((p) => p !== previous)
+  return { ...state, pendingStatuses: [...others, update].slice(-MAX_PENDING_STATUSES) }
 }
 
 function isUpgrade(current: MessageStatus, next: DeliveryStatus): boolean {
@@ -208,16 +203,11 @@ function updateMessage(
   return withChat(state, { ...chat, messages })
 }
 
-/**
- * GREEN-API timestamps have second precision while local ones have milliseconds, so an incoming
- * message only goes before an existing one when it is older by at least a full second.
- */
-const PRECISION_MS: Record<Message['direction'], number> = { in: 999, out: 0 }
-
-function insertByTime(messages: Message[], message: Message): Message[] {
-  const slack = PRECISION_MS[message.direction]
+function insertIncoming(messages: Message[], message: Message): Message[] {
   let index = messages.length
-  while (index > 0 && messages[index - 1]!.timestamp > message.timestamp + slack) index--
+  while (index > 0 && messages[index - 1]!.timestamp - message.timestamp > BACKLOG_THRESHOLD_MS) {
+    index--
+  }
   return [...messages.slice(0, index), message, ...messages.slice(index)]
 }
 

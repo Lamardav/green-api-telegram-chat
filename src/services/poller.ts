@@ -6,10 +6,15 @@ export type PollerStatus = 'ok' | 'retrying'
 
 export type PollerOptions = {
   client: Pick<GreenApiClient, 'receiveNotification' | 'deleteNotification'>
-  /** Must apply the event synchronously: the notification is deleted right after it returns. */
+  /**
+   * Receives every parsed notification. The notification is deleted from the queue right after
+   * this returns, so the handler must hand the event over (e.g. dispatch it) before returning.
+   */
   onEvent: (event: DomainEvent) => void
-  /** Errors that polling cannot recover from (bad credentials, webhook configured). */
+  /** Called once with the error that stopped polling. */
   onFatal: (error: GreenApiError) => void
+  /** Which errors stop polling; defaults to bad credentials and a configured webhook. */
+  isFatal?: (error: unknown) => error is GreenApiError
   onStatus?: (status: PollerStatus) => void
   signal: AbortSignal
   receiveTimeoutSec?: number
@@ -41,7 +46,7 @@ export function abortableSleep(ms: number, signal: AbortSignal): Promise<void> {
   })
 }
 
-const isFatal = (err: unknown): err is GreenApiError =>
+export const isFatalByDefault = (err: unknown): err is GreenApiError =>
   isGreenApiError(err, 'unauthorized') || isGreenApiError(err, 'webhookSet')
 
 class Stop extends Error {}
@@ -63,6 +68,7 @@ export async function runPoller(options: PollerOptions): Promise<void> {
     sleep = abortableSleep,
     random = Math.random,
     now = Date.now,
+    isFatal = isFatalByDefault,
   } = options
 
   let failures = 0

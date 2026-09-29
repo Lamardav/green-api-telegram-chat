@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import type { Message, MessageStatus } from '../../domain/types'
 import { formatTime } from '../../domain/time'
 import { AlertIcon, CheckIcon, ClockIcon, DoubleCheckIcon } from '../icons'
@@ -41,7 +42,13 @@ function StatusIcon({ status }: { status: MessageStatus }) {
   )
 }
 
-export function MessageBubble({ message, groupStart, groupEnd, onRetry }: Props) {
+/** Memoized: a status change in one message must not re-render the whole conversation. */
+export const MessageBubble = memo(function MessageBubble({
+  message,
+  groupStart,
+  groupEnd,
+  onRetry,
+}: Props) {
   const outgoing = message.direction === 'out'
   const status = outgoing ? (message.status ?? 'sent') : null
 
@@ -75,4 +82,4 @@ export function MessageBubble({ message, groupStart, groupEnd, onRetry }: Props)
       )}
     </div>
   )
-}
+})

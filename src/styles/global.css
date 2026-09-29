@@ -5,10 +5,15 @@
 }
 
 html,
-body,
-#root {
+body {
   height: 100%;
   margin: 0;
+}
+
+/* dvh follows the visible viewport on mobile browsers (address bar, on-screen keyboard). */
+#root {
+  height: 100%;
+  height: 100dvh;
 }
 
 body {

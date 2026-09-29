@@ -8,6 +8,8 @@ export type OpenChatResult = { ok: true } | { ok: false; error: string }
 
 export type ChatsValue = {
   state: ChatsState
+  /** False when the browser refused to save the history (quota or disabled storage). */
+  storageOk: boolean
   settings: SettingsStatus
   /** Webhook currently configured on the instance (it blocks HTTP API receiving). */
   webhookUrl: string

@@ -11,15 +11,15 @@ type Props = {
   onChange(theme: Theme): void
 }
 
+/** Segmented control built from toggle buttons: each option is reachable with Tab. */
 export function ThemeSwitch({ value, onChange }: Props) {
   return (
-    <div className={styles.switch} role="radiogroup" aria-label="Тема оформления">
+    <div className={styles.switch} role="group" aria-label="Тема оформления">
       {OPTIONS.map((option) => (
         <button
           key={option.value}
           type="button"
-          role="radio"
-          aria-checked={value === option.value}
+          aria-pressed={value === option.value}
           className={styles.option}
           onClick={() => onChange(option.value)}
         >

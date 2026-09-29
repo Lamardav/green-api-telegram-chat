@@ -6,11 +6,13 @@ import { NewChatForm } from './NewChatForm'
 
 function setup(result: OpenChatResult = { ok: true }) {
   const onSubmit = vi.fn(async () => result)
-  const onClose = vi.fn()
-  render(<NewChatForm onSubmit={onSubmit} onClose={onClose} />)
+  const onDone = vi.fn()
+  const onCancel = vi.fn()
+  render(<NewChatForm onSubmit={onSubmit} onDone={onDone} onCancel={onCancel} />)
   return {
     onSubmit,
-    onClose,
+    onDone,
+    onCancel,
     user: userEvent.setup(),
     input: screen.getByLabelText('Номер телефона получателя'),
   }
@@ -24,28 +26,29 @@ describe('NewChatForm', () => {
   })
 
   it('submits the raw number and closes on success', async () => {
-    const { user, input, onSubmit, onClose } = setup()
+    const { user, input, onSubmit, onDone } = setup()
     await user.type(input, '+7 999 000-00-01{Enter}')
     expect(onSubmit).toHaveBeenCalledWith('+7 999 000-00-01')
-    expect(onClose).toHaveBeenCalled()
+    expect(onDone).toHaveBeenCalled()
   })
 
   it('shows the error and stays open on failure', async () => {
-    const { user, input, onClose } = setup({ ok: false, error: 'Номер не найден' })
+    const { user, input, onDone } = setup({ ok: false, error: 'Номер не найден' })
     await user.type(input, '79990009999')
     await user.click(screen.getByRole('button', { name: 'Создать чат' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('Номер не найден')
     expect(input).toHaveAttribute('aria-invalid', 'true')
-    expect(onClose).not.toHaveBeenCalled()
+    expect(onDone).not.toHaveBeenCalled()
 
     await user.type(input, '1')
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
   it('closes on Escape and on cancel', async () => {
-    const { user, onClose } = setup()
+    const { user, onCancel, onDone } = setup()
     await user.keyboard('{Escape}')
     await user.click(screen.getByRole('button', { name: 'Отмена' }))
-    expect(onClose).toHaveBeenCalledTimes(2)
+    expect(onCancel).toHaveBeenCalledTimes(2)
+    expect(onDone).not.toHaveBeenCalled()
   })
 })

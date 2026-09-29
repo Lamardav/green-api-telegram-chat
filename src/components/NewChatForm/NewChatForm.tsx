@@ -4,10 +4,12 @@ import styles from './NewChatForm.module.css'
 
 type Props = {
   onSubmit(phone: string): Promise<OpenChatResult>
-  onClose(): void
+  /** The chat was opened. */
+  onDone(): void
+  onCancel(): void
 }
 
-export function NewChatForm({ onSubmit, onClose }: Props) {
+export function NewChatForm({ onSubmit, onDone, onCancel }: Props) {
   const id = useId()
   const [phone, setPhone] = useState('')
   const [pending, setPending] = useState(false)
@@ -20,7 +22,7 @@ export function NewChatForm({ onSubmit, onClose }: Props) {
     setError(null)
     const result = await onSubmit(phone)
     if (result.ok) {
-      onClose()
+      onDone()
     } else {
       setError(result.error)
       setPending(false)
@@ -28,7 +30,7 @@ export function NewChatForm({ onSubmit, onClose }: Props) {
   }
 
   function handleKeyDown(event: KeyboardEvent) {
-    if (event.key === 'Escape') onClose()
+    if (event.key === 'Escape') onCancel()
   }
 
   return (
@@ -67,7 +69,7 @@ export function NewChatForm({ onSubmit, onClose }: Props) {
         {error ?? 'В международном формате, с кодом страны'}
       </p>
       <div className={styles.actions}>
-        <button type="button" className={styles.secondary} onClick={onClose}>
+        <button type="button" className={styles.secondary} onClick={onCancel}>
           Отмена
         </button>
         <button type="submit" className={styles.primary} disabled={pending || phone.trim() === ''}>

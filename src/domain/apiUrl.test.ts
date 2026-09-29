@@ -18,6 +18,11 @@ describe('normalizeApiUrl', () => {
     )
   })
 
+  it('requires https except for a local proxy', () => {
+    expect(normalizeApiUrl('http://4100.api.green-api.com')).toBeNull()
+    expect(normalizeApiUrl('http://localhost:8080/')).toBe('http://localhost:8080')
+  })
+
   it('rejects non-http urls and garbage', () => {
     expect(normalizeApiUrl('ftp://example.com')).toBeNull()
     expect(normalizeApiUrl('not a url')).toBeNull()

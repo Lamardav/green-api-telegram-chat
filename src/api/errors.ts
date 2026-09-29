@@ -27,18 +27,23 @@ export function isGreenApiError(err: unknown, kind?: GreenApiErrorKind): err is 
 }
 
 export function classifyHttpError(status: number, bodyText: string): GreenApiError {
-  const body = bodyText.toLowerCase()
   if (status === 401 || status === 403) return new GreenApiError('unauthorized', bodyText, status)
   if (status === 466) return new GreenApiError('quota', bodyText, status)
   if (status === 429) return new GreenApiError('rateLimit', bodyText, status)
   if (status >= 500) return new GreenApiError('server', bodyText, status)
-  if (status === 400 && body.includes('webhook url')) {
-    return new GreenApiError('webhookSet', bodyText, status)
-  }
-  if (status === 400 && (body.includes('not authorized') || body.includes('starting'))) {
-    return new GreenApiError('notAuthorized', bodyText, status)
-  }
-  return new GreenApiError('badRequest', bodyText, status)
+  return new GreenApiError(reasonKind(bodyText), bodyText, status)
+}
+
+/** For errors GREEN-API reports in a 200 body, e.g. `{ "status": false, "reason": "..." }`. */
+export function classifyReason(reason: string): GreenApiError {
+  return new GreenApiError(reasonKind(reason), reason)
+}
+
+function reasonKind(text: string): GreenApiErrorKind {
+  const reason = text.toLowerCase()
+  if (reason.includes('webhook url')) return 'webhookSet'
+  if (reason.includes('not authorized') || reason.includes('starting')) return 'notAuthorized'
+  return 'badRequest'
 }
 
 const MESSAGES: Record<GreenApiErrorKind, string> = {

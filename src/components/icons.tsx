@@ -1,4 +1,4 @@
-import type { SVGProps } from 'react'
+import { useId, type SVGProps } from 'react'
 
 type IconProps = SVGProps<SVGSVGElement>
 
@@ -18,15 +18,16 @@ const base = (props: IconProps) => ({
 
 /** Neutral app mark (not the MAX logo). */
 export function AppMark(props: IconProps) {
+  const gradientId = useId()
   return (
     <svg aria-hidden focusable={false} viewBox="0 0 32 32" {...props}>
       <defs>
-        <linearGradient id="app-mark-gradient" x1="0" y1="1" x2="1" y2="0">
+        <linearGradient id={gradientId} x1="0" y1="1" x2="1" y2="0">
           <stop offset="0" stopColor="#0070EB" />
           <stop offset="1" stopColor="#17A8E5" />
         </linearGradient>
       </defs>
-      <rect width="32" height="32" rx="9" fill="url(#app-mark-gradient)" />
+      <rect width="32" height="32" rx="9" fill={`url(#${gradientId})`} />
       <path
         d="M9 10.5A2.5 2.5 0 0 1 11.5 8h9A2.5 2.5 0 0 1 23 10.5v7a2.5 2.5 0 0 1-2.5 2.5H15l-4.2 3.4c-.5.4-1.3 0-1.3-.6V20A2.5 2.5 0 0 1 9 17.5z"
         fill="#fff"

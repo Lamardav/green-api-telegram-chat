@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import type { IncomingTextEvent, OutgoingStatusEvent } from '../api/notifications'
-import { chatReducer, initialChatsState, type ChatAction } from './chatReducer'
+import {
+  BACKLOG_THRESHOLD_MS,
+  chatReducer,
+  initialChatsState,
+  MAX_PENDING_STATUSES,
+  type ChatAction,
+} from './chatReducer'
 import type { ChatsState } from './types'
 
 const deepFreeze = <T>(value: T): T => {
@@ -113,16 +119,26 @@ describe('incomingText', () => {
     expect(state.chats['1']!.unread).toBe(1)
   })
 
-  it('keeps messages sorted by time when a backlog arrives late', () => {
-    const state = run([open('1'), queued('L1', 'mine', 5000), incoming({ timestamp: 3000 })])
+  it('sorts a real backlog (older than the threshold) into the past', () => {
+    const now = 10 * 60_000
+    const state = run([
+      open('1'),
+      queued('L1', 'mine', now),
+      incoming({ timestamp: now - BACKLOG_THRESHOLD_MS - 1 }),
+    ])
     expect(state.chats['1']!.messages.map((m) => m.text)).toEqual(['Привет', 'mine'])
-    expect(state.chats['1']!.lastActivity).toBe(5000)
+    expect(state.chats['1']!.lastActivity).toBe(now)
   })
 
-  it('does not place a reply before our message because of second-precision timestamps', () => {
-    // We sent at 5.400 s; the reply arrives stamped 5 s (GREEN-API truncates to seconds).
-    const state = run([open('1'), queued('L1', 'mine', 5400), incoming({ timestamp: 5000 })])
+  it('keeps a fresh reply after our message despite clock skew and second precision', () => {
+    // Server clock is 30 s behind ours and truncates to seconds.
+    const state = run([open('1'), queued('L1', 'mine', 60_400), incoming({ timestamp: 30_000 })])
     expect(state.chats['1']!.messages.map((m) => m.text)).toEqual(['mine', 'Привет'])
+  })
+
+  it('appends own messages even when the server clock is ahead', () => {
+    const state = run([open('1'), incoming({ timestamp: 90_000 }), queued('L1', 'mine', 60_000)])
+    expect(state.chats['1']!.messages.map((m) => m.text)).toEqual(['Привет', 'mine'])
   })
 
   it('moves the chat to the top of the list', () => {
@@ -205,15 +221,25 @@ describe('outgoing messages', () => {
 
   it('buffers a status that arrives before the SendMessage response', () => {
     let state = run([open('1'), queued(), status('M1', 'delivered')])
-    expect(state.pendingStatuses).toEqual({ M1: { status: 'delivered' } })
+    expect(state.pendingStatuses).toEqual([{ idMessage: 'M1', status: 'delivered' }])
     state = run([sent()], state)
     expect(outMessage(state).status).toBe('delivered')
-    expect(state.pendingStatuses).toEqual({})
+    expect(state.pendingStatuses).toEqual([])
   })
 
   it('keeps the highest buffered status', () => {
     const state = run([open('1'), status('M1', 'read'), status('M1', 'delivered')])
-    expect(state.pendingStatuses.M1).toEqual({ status: 'read' })
+    expect(state.pendingStatuses).toEqual([{ idMessage: 'M1', status: 'read' }])
+  })
+
+  it('caps the buffer, evicting the oldest statuses', () => {
+    const actions = Array.from({ length: MAX_PENDING_STATUSES + 5 }, (_, i) =>
+      status(String(i), 'read'),
+    )
+    const state = run(actions)
+    expect(state.pendingStatuses).toHaveLength(MAX_PENDING_STATUSES)
+    expect(state.pendingStatuses[0]!.idMessage).toBe('5')
+    expect(state.pendingStatuses.at(-1)!.idMessage).toBe(String(MAX_PENDING_STATUSES + 4))
   })
 
   it('fails and retries', () => {
@@ -234,26 +260,5 @@ describe('outgoing messages', () => {
     expect(
       run([{ type: 'messageQueued', chatId: 'zzz', localId: 'x', text: 'x', now: 1 }], state),
     ).toEqual(state)
-  })
-})
-
-describe('replaced (cross-tab sync)', () => {
-  it('applies statuses buffered for messages sent from the other tab', () => {
-    const local = run([open('1'), status('M1', 'delivered')])
-    const remote = run([open('1'), queued(), sent()])
-    const state = run([{ type: 'replaced', state: remote }], local)
-    expect(outMessage(state).status).toBe('delivered')
-    expect(state.pendingStatuses).toEqual({})
-  })
-})
-
-describe('replaced', () => {
-  it('takes chats from another tab but keeps local selection and buffered statuses', () => {
-    const local = run([open('1'), status('M5', 'read')])
-    const remote = run([open('2')])
-    const state = run([{ type: 'replaced', state: remote }], local)
-    expect(Object.keys(state.chats)).toEqual(['2'])
-    expect(state.activeChatId).toBeNull() // local selection '1' no longer exists
-    expect(state.pendingStatuses).toEqual({ M5: { status: 'read' } })
   })
 })
