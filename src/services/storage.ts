@@ -72,7 +72,7 @@ export function clearSession(): void {
 
 const STATUSES = new Set(['pending', 'sent', 'delivered', 'read', 'failed'])
 
-function toMessage(v: unknown): Message | null {
+function toMessage(v: unknown, interruptPending: boolean): Message | null {
   if (!isObject(v)) return null
   const { localId, idMessage, direction, text, timestamp, status, error } = v
   if (!isString(localId) || !isString(text) || !isNumber(timestamp)) return null
@@ -83,7 +83,7 @@ function toMessage(v: unknown): Message | null {
     const known =
       isString(status) && STATUSES.has(status) ? (status as Message['status']) : 'failed'
     // A request cannot survive a reload: anything still "sending" has an unknown fate.
-    if (known === 'pending') {
+    if (known === 'pending' && interruptPending) {
       message.status = 'failed'
       message.error = INTERRUPTED_SEND
     } else {
@@ -94,14 +94,16 @@ function toMessage(v: unknown): Message | null {
   return message
 }
 
-function toChat(v: unknown): Chat | null {
+function toChat(v: unknown, interruptPending: boolean): Chat | null {
   if (!isObject(v)) return null
   const { chatId, title, phone, messages, unread, lastActivity } = v
   if (!isString(chatId) || !isString(title) || !Array.isArray(messages)) return null
   const chat: Chat = {
     chatId,
     title,
-    messages: messages.map(toMessage).filter((m): m is Message => m !== null),
+    messages: messages
+      .map((m) => toMessage(m, interruptPending))
+      .filter((m): m is Message => m !== null),
     unread: isNumber(unread) ? unread : 0,
     lastActivity: isNumber(lastActivity) ? lastActivity : 0,
   }
@@ -111,24 +113,27 @@ function toChat(v: unknown): Chat | null {
 
 export function loadChats(idInstance: string): ChatsState | null {
   const data = readJson('local', chatsKey(idInstance))
-  return parseChats(data)
+  return parseChats(data, true)
 }
 
-/** Exposed for cross-tab sync, where the raw value comes from a `storage` event. */
+/**
+ * Parses a value written by another tab (`storage` event). Its in-flight messages are still
+ * being sent there, so they stay pending.
+ */
 export function parseChatsJson(raw: string | null): ChatsState | null {
   if (raw === null) return null
   try {
-    return parseChats(JSON.parse(raw) as unknown)
+    return parseChats(JSON.parse(raw) as unknown, false)
   } catch {
     return null
   }
 }
 
-function parseChats(data: unknown): ChatsState | null {
+function parseChats(data: unknown, interruptPending: boolean): ChatsState | null {
   if (!isObject(data) || !isObject(data.chats) || !Array.isArray(data.order)) return null
   const chats: Record<string, Chat> = {}
   for (const value of Object.values(data.chats)) {
-    const chat = toChat(value)
+    const chat = toChat(value, interruptPending)
     if (chat) chats[chat.chatId] = chat
   }
   const order = data.order.filter((id): id is string => isString(id) && id in chats)

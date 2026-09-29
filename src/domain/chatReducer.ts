@@ -109,7 +109,18 @@ export function chatReducer(state: ChatsState, action: ChatAction): ChatsState {
       const { chats, order } = action.state
       const activeChatId =
         state.activeChatId !== null && chats[state.activeChatId] ? state.activeChatId : null
-      return { chats, order, activeChatId, pendingStatuses: state.pendingStatuses }
+      // Statuses buffered here may belong to messages another tab has just sent.
+      let next: ChatsState = { chats, order, activeChatId, pendingStatuses: {} }
+      for (const [idMessage, pending] of Object.entries(state.pendingStatuses)) {
+        const event: OutgoingStatusEvent = {
+          type: 'outgoingStatus',
+          chatId: '',
+          idMessage,
+          ...pending,
+        }
+        next = receiveStatus(next, event)
+      }
+      return next
     }
   }
 }
@@ -197,9 +208,16 @@ function updateMessage(
   return withChat(state, { ...chat, messages })
 }
 
+/**
+ * GREEN-API timestamps have second precision while local ones have milliseconds, so an incoming
+ * message only goes before an existing one when it is older by at least a full second.
+ */
+const PRECISION_MS: Record<Message['direction'], number> = { in: 999, out: 0 }
+
 function insertByTime(messages: Message[], message: Message): Message[] {
+  const slack = PRECISION_MS[message.direction]
   let index = messages.length
-  while (index > 0 && messages[index - 1]!.timestamp > message.timestamp) index--
+  while (index > 0 && messages[index - 1]!.timestamp > message.timestamp + slack) index--
   return [...messages.slice(0, index), message, ...messages.slice(index)]
 }
 

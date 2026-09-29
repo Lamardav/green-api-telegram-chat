@@ -8,6 +8,7 @@ import {
   loadChats,
   loadSession,
   loadTheme,
+  parseChatsJson,
   saveChats,
   saveSession,
   saveTheme,
@@ -77,6 +78,21 @@ describe('chats', () => {
       status: 'failed',
       error: INTERRUPTED_SEND,
     })
+  })
+
+  it('keeps in-flight messages pending when syncing from another tab', () => {
+    const sending = chatReducer(state, {
+      type: 'messageQueued',
+      chatId: '1',
+      localId: 'L2',
+      text: 'in flight',
+      now: 30,
+    })
+    saveChats('4100000001', sending)
+    const synced = parseChatsJson(localStorage.getItem(chatsKey('4100000001')))!
+    expect(synced.chats['1']!.messages[1]!.status).toBe('pending')
+    expect(parseChatsJson(null)).toBeNull()
+    expect(parseChatsJson('{bad')).toBeNull()
   })
 
   it('discards malformed data', () => {

@@ -119,6 +119,12 @@ describe('incomingText', () => {
     expect(state.chats['1']!.lastActivity).toBe(5000)
   })
 
+  it('does not place a reply before our message because of second-precision timestamps', () => {
+    // We sent at 5.400 s; the reply arrives stamped 5 s (GREEN-API truncates to seconds).
+    const state = run([open('1'), queued('L1', 'mine', 5400), incoming({ timestamp: 5000 })])
+    expect(state.chats['1']!.messages.map((m) => m.text)).toEqual(['mine', 'Привет'])
+  })
+
   it('moves the chat to the top of the list', () => {
     const state = run([open('1', 1000), open('2', 2000), incoming({ timestamp: 3000 })])
     expect(state.order).toEqual(['1', '2'])
@@ -228,6 +234,16 @@ describe('outgoing messages', () => {
     expect(
       run([{ type: 'messageQueued', chatId: 'zzz', localId: 'x', text: 'x', now: 1 }], state),
     ).toEqual(state)
+  })
+})
+
+describe('replaced (cross-tab sync)', () => {
+  it('applies statuses buffered for messages sent from the other tab', () => {
+    const local = run([open('1'), status('M1', 'delivered')])
+    const remote = run([open('1'), queued(), sent()])
+    const state = run([{ type: 'replaced', state: remote }], local)
+    expect(outMessage(state).status).toBe('delivered')
+    expect(state.pendingStatuses).toEqual({})
   })
 })
 
