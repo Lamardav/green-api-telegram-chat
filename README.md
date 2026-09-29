@@ -4,6 +4,14 @@
 
 **Стек:** React 19 · TypeScript (strict) · Vite 8 · CSS Modules · Vitest + Testing Library · oxlint · Prettier. Бэкенда нет: браузер обращается к GREEN-API напрямую, CORS это разрешает.
 
+![Переписка](docs/screenshots/chat.png)
+
+| Вход                                | Тема «Космос»                                     | Телефон                                          |
+| ----------------------------------- | ------------------------------------------------- | ------------------------------------------------ |
+| ![Вход](docs/screenshots/login.png) | ![Тема «Космос»](docs/screenshots/chat-space.png) | ![Мобильная версия](docs/screenshots/mobile.png) |
+
+<sub>Скриншоты сделаны в демо-режиме (`npm run dev:mock`): там встроенный симулятор отвечает эхом на каждое сообщение.</sub>
+
 ## Сценарий
 
 1. Пользователь вводит `idInstance` и `apiTokenInstance` своего инстанса.
