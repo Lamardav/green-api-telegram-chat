@@ -49,7 +49,7 @@ export function Sidebar({ theme, onThemeChange }: Props) {
           <p>Нажмите «+», введите номер получателя и напишите первое сообщение</p>
           {!creating && (
             <button type="button" className={styles.emptyButton} onClick={() => setCreating(true)}>
-              Новый чат
+              Создать первый чат
             </button>
           )}
         </div>
