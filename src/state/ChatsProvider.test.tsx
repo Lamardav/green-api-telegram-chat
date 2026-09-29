@@ -203,10 +203,13 @@ describe('ChatsProvider', () => {
     await screen.findByText(/Настройки сохранены/)
 
     // The instance restarts and still answers with the old settings for a while.
+    const receives = () => fake.calls.filter((c) => c === 'receiveNotification').length
+    const before = receives()
     fake.settings.webhookUrl = 'https://example.com/hook'
-    await waitFor(() =>
-      expect(fake.calls.filter((c) => c === 'receiveNotification').length).toBeGreaterThan(1),
-    )
+    // The next poll fails with "webhook url is set"; polling going on after it proves the error
+    // was treated as temporary. Timing depends on the long poll and backoff, hence the timeout.
+    await waitFor(() => expect(receives()).toBeGreaterThanOrEqual(before + 2), { timeout: 8000 })
+    expect(chats.settings).toBe('applied')
     fake.settings.webhookUrl = ''
     fake.pushIncoming(FAKE_CHAT_ID, 'дошло')
 
