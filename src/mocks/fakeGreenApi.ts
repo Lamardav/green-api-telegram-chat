@@ -156,7 +156,11 @@ export function createFakeGreenApi(options: FakeOptions = {}) {
     calls.push(method)
 
     const failure = failures.get(method)?.shift()
-    if (failure) return new Response(failure.body, { status: failure.status })
+    if (failure) {
+      // Status 0 simulates a network failure, like a real fetch rejecting.
+      if (failure.status === 0) throw new TypeError('Failed to fetch')
+      return new Response(failure.body, { status: failure.status })
+    }
     if (token !== FAKE_TOKEN) return new Response('Unauthorized', { status: 401 })
     if (id !== FAKE_ID_INSTANCE) return new Response('Forbidden', { status: 403 })
 
